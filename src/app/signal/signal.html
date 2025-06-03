@@ -1,0 +1,13 @@
+{{counter()}}
+{{finalCounter()}}
+<button (click)="increment()">Increment</button>
+
+<br /><br />
+<label>ToSignal() - Convert observale to ToSignal() Example</label>
+@if (vehicles()){
+<ul>
+    @for(vehicle of vehicles().results; track vehicle.name) {
+    <li>{{vehicle?.name}} - {{ vehicle?.model}}</li>
+    }
+</ul>
+}
