@@ -1,0 +1,88 @@
+ .form-container {
+     max-width: 500px;
+     margin: 30px auto;
+     padding: 20px;
+     border: 1px solid #ddd;
+     border-radius: 8px;
+     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+     font-family: Arial, sans-serif;
+ }
+
+ .form-group {
+     margin-bottom: 15px;
+ }
+
+ label {
+     display: block;
+     margin-bottom: 5px;
+     font-weight: bold;
+ }
+
+ input[type="text"],
+ input[type="email"],
+ input[type="password"] {
+     width: calc(100% - 20px);
+     padding: 10px;
+     border: 1px solid #ccc;
+     border-radius: 4px;
+     box-sizing: border-box;
+ }
+
+ .error-message {
+     color: #d9534f;
+     font-size: 0.85em;
+     margin-top: 5px;
+ }
+
+ button {
+     padding: 10px 20px;
+     background-color: #007bff;
+     color: white;
+     border: none;
+     border-radius: 5px;
+     cursor: pointer;
+     font-size: 1em;
+ }
+
+ button:disabled {
+     background-color: #cccccc;
+     cursor: not-allowed;
+ }
+
+ .form-summary {
+     margin-top: 25px;
+     padding: 15px;
+     background-color: #f0f8ff;
+     border: 1px dashed #a8d6ff;
+     border-radius: 6px;
+     font-size: 0.9em;
+ }
+
+ .form-summary pre {
+     background-color: #e9ecef;
+     padding: 10px;
+     border-radius: 4px;
+     white-space: pre-wrap;
+     /* Ensures long lines wrap */
+     word-break: break-all;
+     /* Breaks words if necessary */
+ }
+
+ .valid-status {
+     color: green;
+     font-weight: bold;
+ }
+
+ .invalid-status {
+     color: red;
+     font-weight: bold;
+ }
+
+ .submission-result {
+     margin-top: 20px;
+     padding: 15px;
+     border: 1px solid #28a745;
+     border-radius: 8px;
+     background-color: #d4edda;
+     color: #155724;
+ }

@@ -1,0 +1,45 @@
+<div class="form-container">
+    <h2>User Registration</h2>
+    <form [formGroup]="registrationForm" (ngSubmit)="onSubmit()">
+        <div class="form-group">
+            <label for="username">Username:</label>
+            <input type="text" id="username" formControlName="username" class="form-control" />
+            @if(usernameControl.invalid && usernameControl.touched){
+            <p class="error-message">Username is required and must be at least 3 characters.</p>
+            }
+        </div>
+        <div class="form-group">
+            <label for="email">Email:</label>
+            <input id="email" type="email" formControlName="email">
+            @if (emailControl.invalid && emailControl.touched) {
+            <p class="error-message">Please enter a valid email address.</p>
+            }
+        </div>
+
+        <div class="form-group">
+            <label for="password">Password:</label>
+            <input id="password" type="password" formControlName="password">
+            @if (passwordControl.invalid && passwordControl.touched) {
+            <p class="error-message">Password must be at least 6 characters.</p>
+            }
+        </div>
+        <button type="submit" [disabled]="!isFormValid()">Register</button>
+    </form>
+
+      <!-- <div class="form-summary">
+        <h3>Form State (Signals):</h3>
+        <p><strong>Form Status:</strong> <span [class.valid-status]="formStatus() === 'VALID'" [class.invalid-status]="formStatus() === 'INVALID'">{{ formStatus() }}</span></p>
+        <p><strong>Is Form Valid:</strong> {{ isFormValid() }}</p>
+        <p><strong>Form Value:</strong></p>
+        <pre>{{ formValue() | json }}</pre>
+        <p><strong>Username Value:</strong> {{ usernameControl.value() }}</p>
+        <p><strong>Username Status:</strong> {{ usernameControl.status() }}</p>
+      </div> -->
+
+      @if (formSubmittedValue()) {
+        <div class="submission-result">
+          <h3>Form Submitted!</h3>
+          <pre>{{ formSubmittedValue() | json }}</pre>
+        </div>
+      }
+</div>

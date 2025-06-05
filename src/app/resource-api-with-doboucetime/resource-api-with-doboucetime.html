@@ -1,0 +1,41 @@
+<div class="container">
+   <div class="page-title">
+      {{pageTitle}}
+   </div>
+
+   <div>
+      <label for="model">Search string: &nbsp;</label>
+      <input type="text"
+             name="model"
+             [(ngModel)]="enteredModel">
+   </div>
+
+   @if (isLoading()) {
+      <div>... loading vehicles</div>
+   }  @else {
+      @if (vehicles().length) {
+         <table>
+            <thead>
+               <tr>
+                  <th>Name</th>
+                  <th>Model</th>
+                  <th>Cost (in credits)</th>
+               </tr>
+            </thead>
+
+            <tbody>
+               @for (vehicle of vehicles(); track vehicle) {
+               <tr>
+                  <td> {{ vehicle.name }} </td>
+                  <td> {{ vehicle.model }} </td>
+                  <td> {{ vehicle.cost_in_credits }} </td>
+               </tr>
+               }
+            </tbody>
+         </table>
+      } @else {
+         <div>No vehicles found</div>
+      }
+
+   }
+</div>
