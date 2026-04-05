@@ -192,7 +192,8 @@ function finalize(){
   if(!repo){ log('Could not determine repository; set GITHUB_REPOSITORY env var.'); return; }
 
   const [owner, repoName] = repo.split('/');
-  const postData = JSON.stringify({ title: `AI proposed fix for issue #${issueNumber}: ${issue.title}`, head: branch, base: 'main', body: `Automated fix suggested by AI for issue #${issueNumber}. Please review. Do not merge automatically.` });
+  const baseBranch = process.env.BASE_BRANCH || 'master';
+  const postData = JSON.stringify({ title: `AI proposed fix for issue #${issueNumber}: ${issue.title}`, head: branch, base: baseBranch, body: `Automated fix suggested by AI for issue #${issueNumber}. Please review. Do not merge automatically.` });
 
   const options = {
     hostname: 'api.github.com', path: `/repos/${owner}/${repoName}/pulls`, method: 'POST',
