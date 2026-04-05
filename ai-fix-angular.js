@@ -187,7 +187,7 @@ function finalize(){
   }catch(e){ log('git push failed:', e.message); throw e; }
 
   // Create PR via REST using GITHUB_TOKEN
-  const token = process.env.GITHUB_TOKEN; if(!token){ log('GITHUB_TOKEN not available; cannot create PR'); return; }
+  const token = process.env.G_TOKEN; if(!token){ log('G_TOKEN not available; cannot create PR'); return; }
   const repo = process.env.GITHUB_REPOSITORY || (()=>{ try{ const rem = gitCommand('git remote get-url origin'); const m = rem.match(/[:/]([^/]+\/[^/]+)(?:\.git)?$/); return m ? m[1] : null; }catch(e){ return null; } })();
   if(!repo){ log('Could not determine repository; set GITHUB_REPOSITORY env var.'); return; }
 
@@ -204,7 +204,7 @@ function finalize(){
   req.on('error', e => log('PR request failed:', e.message)); req.write(postData); req.end();
 }
 
-function commentOnIssue(owner, repo, issueNumber, message){ const token = process.env.GITHUB_TOKEN; if(!token) return; const post = JSON.stringify({ body: message });
+function commentOnIssue(owner, repo, issueNumber, message){ const token = process.env.G_TOKEN; if(!token) return; const post = JSON.stringify({ body: message });
   const options = { hostname: 'api.github.com', path: `/repos/${owner}/${repo}/issues/${issueNumber}/comments`, method: 'POST', headers: { 'User-Agent':'ai-fix-script', 'Authorization': `token ${token}`, 'Content-Type':'application/json', 'Content-Length': Buffer.byteLength(post) } };
   const req = https.request(options, res => { let body=''; res.on('data', d=> body+=d); res.on('end', ()=>{ log('Comment response status', res.statusCode); }); });
   req.on('error', e=> log('Comment failed', e.message)); req.write(post); req.end();

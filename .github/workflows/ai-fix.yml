@@ -3,7 +3,7 @@ name: AI Issue Fix
 on:
   issues:
     types: [opened]
-    workflow_dispatch: {}
+  workflow_dispatch: {}
 
 jobs:
   ai-fix:
@@ -16,8 +16,8 @@ jobs:
     env:
       # Provide a Hugging Face API key (free tier available) or set to empty
       HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}
-        # Default branch to create PRs against (set to 'master' as requested)
-        BASE_BRANCH: master
+      # Default branch to create PRs against (set to 'master' as requested)
+      BASE_BRANCH: master
 
     steps:
       - name: Checkout
@@ -25,19 +25,25 @@ jobs:
         with:
           persist-credentials: true
 
-        - name: Debug event payload
-          run: |
-            echo "GITHUB_EVENT_PATH=$GITHUB_EVENT_PATH"
-            mkdir -p .ai-fix
-            if [ -f "$GITHUB_EVENT_PATH" ]; then cp "$GITHUB_EVENT_PATH" .ai-fix/event.json && echo "Saved event payload to .ai-fix/event.json"; else echo "No event payload file found"; fi
-          env:
-            GITHUB_EVENT_PATH: ${{ github.event_path }}
+      - name: Debug event payload
+        run: |
+          echo "GITHUB_EVENT_PATH=$GITHUB_EVENT_PATH"
+          mkdir -p .ai-fix
+          if [ -f "$GITHUB_EVENT_PATH" ]; then cp "$GITHUB_EVENT_PATH" .ai-fix/event.json && echo "Saved event payload to .ai-fix/event.json"; else echo "No event payload file found"; fi
+        env:
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
 
-        - name: Check HuggingFace API key
-          run: |
-            if [ -z "${HUGGINGFACE_API_KEY}" ]; then echo "HUGGINGFACE_API_KEY secret is missing. Add it in repo Settings → Secrets → Actions."; exit 1; fi
-          env:
-            HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}
+      - name: Upload debug artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-fix-event
+          path: .ai-fix/event.json
+
+      - name: Check HuggingFace API key
+        run: |
+          if [ -z "${HUGGINGFACE_API_KEY}" ]; then echo "HUGGINGFACE_API_KEY secret is missing. Add it in repo Settings → Secrets → Actions."; exit 1; fi
+        env:
+          HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}
 
       - name: Use Node.js 18
         uses: actions/setup-node@v4
@@ -71,4 +77,11 @@ jobs:
           GITHUB_EVENT_PATH: ${{ github.event_path }}
           GITHUB_TOKEN: ${{ secrets.G_TOKEN }}
           HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}
-            BASE_BRANCH: ${{ env.BASE_BRANCH }}
+          BASE_BRANCH: ${{ env.BASE_BRANCH }}
+
+      - name: Upload ai-fix artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-fix-debug
+          path: .ai-fix
