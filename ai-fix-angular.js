@@ -41,6 +41,13 @@ function extractIssueData(event){ if(!event || !event.issue) return null; const 
 
 function findMentionedFiles(text){ if(!text) return []; const re = /([\w\-\/\.]+\.(ts|html|scss|css))/gi; const matches = []; let m; while((m = re.exec(text))){ matches.push(m[1]); } return Array.from(new Set(matches)); }
 
+function findFilesByBasename(basename){
+  const results = [];
+  function walk(dir){ const list = fs.readdirSync(dir); for(const f of list){ const full = path.join(dir,f); const stat = fs.statSync(full); if(stat.isDirectory()){ walk(full); } else { if(path.basename(full) === basename) results.push(path.relative(process.cwd(), full).replace(/\\/g,'/')); } } }
+  try{ walk(path.join(process.cwd(), 'src')); }catch(e){}
+  return results;
+}
+
 function keywordsFromText(text){ if(!text) return []; const kws = ['component','service','module','pipe','directive','html','template','scss','style','route','router','guard','interceptor','form','http','rxjs']; const found = new Set(); const t = (text||'').toLowerCase(); for(const k of kws) if(t.includes(k)) found.add(k); return Array.from(found); }
 
 function findFilesByKeywords(keywords){ const globs = [];
@@ -122,7 +129,11 @@ async function prepare(){
   if(requireLabel === 'true' && !(issue.labels||[]).includes('ai-fix')){ log('Label ai-fix not present; skipping.'); return; }
 
   // Detect candidate files
-  const mentions = findMentionedFiles(issue.title + '\n' + issue.body);
+  let mentions = findMentionedFiles(issue.title + '\n' + issue.body);
+  // If user mentioned a bare filename (no path) try to resolve it to repo files
+  const resolvedMentions = [];
+  for(const m of mentions){ const candidatePath = path.join(process.cwd(), m); if(fs.existsSync(candidatePath)){ resolvedMentions.push(m); } else { const basenames = findFilesByBasename(path.basename(m)); if(basenames.length) resolvedMentions.push(...basenames); else resolvedMentions.push(m); } }
+  mentions = Array.from(new Set(resolvedMentions));
   const kws = keywordsFromText(issue.title + ' ' + issue.body);
   let candidates = [];
   if(mentions.length) candidates.push(...mentions);
@@ -142,7 +153,17 @@ async function prepare(){
   // Call AI
   log('Calling AI for', Object.keys(filesMap).length, 'files');
   let aiResp;
-  try{ aiResp = await callHuggingFace(prompt); }catch(e){ log('AI call failed:', e.message); writeJsonSafe(path.join(AI_TEMP_DIR,'prepare.json'), { issue: issue, files: candidates, error: e.message }); return; }
+  try{ aiResp = await callHuggingFace(prompt); }catch(e){ log('AI call failed:', e.message);
+    // Save raw error to aid debugging
+    fs.mkdirSync(AI_TEMP_DIR, { recursive: true });
+    fs.writeFileSync(path.join(AI_TEMP_DIR,'ai-error.txt'), String(e && e.message ? e.message : e), 'utf8');
+    // If HF router notice, hint to user
+    if(String(e.message || '').includes('router.huggingface.co')){
+      log('Hugging Face inference endpoint changed. Update script to use router.huggingface.co or update API usage. See .ai-fix/ai-error.txt');
+    }
+    writeJsonSafe(path.join(AI_TEMP_DIR,'prepare.json'), { issue: issue, files: candidates, error: e.message, ai_error_path: AI_TEMP_DIR + '/ai-error.txt' });
+    return;
+  }
 
   // Expect JSON response
   let parsed = null;
