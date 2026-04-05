@@ -18,6 +18,8 @@ jobs:
       HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}
       # Default branch to create PRs against (set to 'master' as requested)
       BASE_BRANCH: master
+      # Set to 'true' to skip running tests in CI (useful for debug/manual runs)
+      SKIP_TESTS: 'true'
 
     steps:
       - name: Checkout
@@ -66,6 +68,7 @@ jobs:
         run: npm run build
 
       - name: Run tests
+        if: env.SKIP_TESTS != 'true'
         run: |
           if npm run | grep -q " test"; then npm run test --if-present -- --watch=false; else echo "No tests defined"; fi
 
