@@ -45,10 +45,10 @@ jobs:
         env:
           HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}
 
-      - name: Use Node.js 20 (v20.11.0+ required by Angular CLI)
+      - name: Use Node.js 20 (v20.19.0+ required by Angular CLI)
         uses: actions/setup-node@v4
         with:
-          node-version: '20.11.0'
+          node-version: '20.19.0'
 
       - name: Install dependencies
         run: npm ci
