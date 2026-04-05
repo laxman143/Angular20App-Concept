@@ -1,0 +1,56 @@
+name: AI Issue Fix
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  ai-fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    env:
+      # Provide a Hugging Face API key (free tier available) or set to empty
+      HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Use Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prepare AI fix (run generator)
+        id: prepare
+        run: |
+          node ai-fix-angular.js --prepare
+        env:
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          GITHUB_TOKEN: ${{ secrets.G_TOKEN }}
+          HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}
+
+      - name: Build
+        run: npm run build
+
+      - name: Run tests
+        run: |
+          if npm run | grep -q " test"; then npm run test --if-present -- --watch=false; else echo "No tests defined"; fi
+
+      - name: Finalize commit and create PR
+        if: success()
+        run: |
+          node ai-fix-angular.js --finalize
+        env:
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          GITHUB_TOKEN: ${{ secrets.G_TOKEN }}
+          HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}

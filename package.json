@@ -4,6 +4,8 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
+    "prepare-ai-fix": "node ai-fix-angular.js --prepare",
+    "finalize-ai-fix": "node ai-fix-angular.js --finalize",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
