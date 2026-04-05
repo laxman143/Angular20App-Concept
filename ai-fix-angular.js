@@ -161,6 +161,29 @@ async function prepare(){
     if(String(e.message || '').includes('router.huggingface.co')){
       log('Hugging Face inference endpoint changed. Update script to use router.huggingface.co or update API usage. See .ai-fix/ai-error.txt');
     }
+    // Attempt a safe deterministic fallback: simple find-and-replace based on issue text
+    const replaceRegex = /should be\s+"([^"]+)"\s+instead of\s+"([^"]+)"/i;
+    const m = (issue.body || issue.title || '').match(replaceRegex);
+    if(m){
+      const newText = m[1];
+      const oldText = m[2];
+      log('Attempting deterministic replacement:', JSON.stringify({ oldText, newText }));
+      const replacements = {};
+      for(const [rel, content] of Object.entries(filesMap)){
+        if(content && content.includes(oldText)){
+          replacements[rel] = content.split(oldText).join(newText);
+        }
+      }
+      if(Object.keys(replacements).length){
+        const written = safeWriteFiles(replacements);
+        writeJsonSafe(path.join(AI_TEMP_DIR,'prepare.json'), { issue: issue, candidates: candidates, written: written, fallback: 'deterministic-replace', replaced: Object.keys(replacements) });
+        log('Deterministic replacements written for files:', Object.keys(replacements));
+        // continue — prepare considered complete
+        return;
+      } else {
+        log('Deterministic replacement did not find occurrences of the old text in candidate files.');
+      }
+    }
     writeJsonSafe(path.join(AI_TEMP_DIR,'prepare.json'), { issue: issue, files: candidates, error: e.message, ai_error_path: AI_TEMP_DIR + '/ai-error.txt' });
     return;
   }
