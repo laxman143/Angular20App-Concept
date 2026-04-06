@@ -223,7 +223,48 @@ async function prepare(){
     const m = aiResp.match(/\{[\s\S]*\}/); if(m) try{ parsed = JSON.parse(m[0]); }catch(e2){ parsed = null; }
   }
 
-  if(!parsed || typeof parsed.files !== 'object'){ log('AI did not return valid files JSON. Saving AI response for inspection.'); fs.mkdirSync(AI_TEMP_DIR, { recursive: true }); fs.writeFileSync(path.join(AI_TEMP_DIR,'ai-response.txt'), aiResp, 'utf8'); writeJsonSafe(path.join(AI_TEMP_DIR,'prepare.json'), { issue: issue, files: candidates, ai_response_path: AI_TEMP_DIR + '/ai-response.txt' }); return; }
+  if(!parsed || typeof parsed.files !== 'object'){
+    log('AI did not return valid files JSON. Attempting to extract files from response.');
+    fs.mkdirSync(AI_TEMP_DIR, { recursive: true });
+    fs.writeFileSync(path.join(AI_TEMP_DIR,'ai-response.txt'), aiResp, 'utf8');
+
+    // Try to extract JSON inside triple-backticks ```json ... ```
+    let extractedFiles = null;
+    const codeBlockJson = aiResp.match(/```json\s*([\s\S]*?)```/i);
+    if(codeBlockJson){
+      try{
+        const j = JSON.parse(codeBlockJson[1]);
+        if(j && typeof j.files === 'object') extractedFiles = j.files;
+      }catch(e){ /* ignore */ }
+    }
+
+    // If not found, try to extract using ---FILE:filename--- markers
+    if(!extractedFiles){
+      const fileMarkerRegex = /---FILE:([^\n]+)---\n([\s\S]*?)---ENDFILE:[^\n]+---/g;
+      const filesObj = {};
+      let fm;
+      while((fm = fileMarkerRegex.exec(aiResp)) !== null){
+        const p = fm[1].trim();
+        const c = fm[2];
+        filesObj[p] = c.replace(/\r\n/g,'\n');
+      }
+      if(Object.keys(filesObj).length) extractedFiles = filesObj;
+    }
+
+    if(extractedFiles && typeof extractedFiles === 'object'){
+      // enforce safety limit
+      const respFiles = Object.keys(extractedFiles).slice(0, MAX_FILES);
+      const allowed = respFiles.reduce((acc,p)=>{ acc[p]=extractedFiles[p]; return acc; }, {});
+      const written = safeWriteFiles(allowed);
+      writeJsonSafe(path.join(AI_TEMP_DIR,'prepare.json'), { issue: issue, candidates: candidates, written: written, ai_response_path: AI_TEMP_DIR + '/ai-response.txt', extracted_from_ai: true, extracted_files: Object.keys(allowed) });
+      log('Extracted and wrote files from AI response:', Object.keys(allowed));
+      return;
+    }
+
+    // fallback: save response and exit prepare
+    writeJsonSafe(path.join(AI_TEMP_DIR,'prepare.json'), { issue: issue, files: candidates, ai_response_path: AI_TEMP_DIR + '/ai-response.txt' });
+    return;
+  }
 
   // Enforce safety: do not modify more than MAX_FILES
   const respFiles = Object.keys(parsed.files || {});
