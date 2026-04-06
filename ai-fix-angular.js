@@ -283,7 +283,27 @@ async function prepare(){
 function finalize(){
   const prep = readJsonSafe(path.join(AI_TEMP_DIR,'prepare.json'));
   if(!prep){ log('No prepare.json found; run --prepare first'); return; }
-  if(!prep.written || prep.written.length === 0){ log('Nothing to commit. Exiting.'); return; }
+  if(!prep.written || prep.written.length === 0){
+    // No files were prepared by AI — create a safe diagnostic file so a PR is created for human review.
+    const issue = prep.issue || {};
+    const issueNumber = issue.number || 'unknown';
+    const diagRel = path.join(AI_TEMP_DIR, `diagnostic-issue-${issueNumber}.md`);
+    const diagAbs = path.join(process.cwd(), diagRel);
+    const aiRespPath = path.join(AI_TEMP_DIR, 'ai-response.txt');
+    const aiErrPath = path.join(AI_TEMP_DIR, 'ai-error.txt');
+    const diagContent = `# AI Diagnostic for issue #${issueNumber}\n\n` +
+      `**Issue:** ${issue.title || ''}\n\n` +
+      `**Body:**\n${issue.body || ''}\n\n` +
+      `---\n` +
+      `AI response saved at: ${aiRespPath}\n` +
+      `AI error saved at: ${aiErrPath}\n` +
+      `Candidate files considered:\n${(prep.candidates||[]).join('\n')}\n`;
+    try{ fs.mkdirSync(path.dirname(diagAbs), { recursive: true }); fs.writeFileSync(diagAbs, diagContent, 'utf8'); }catch(e){ log('Failed to write diagnostic file:', e.message); }
+    // ensure the diagnostic file is treated as a prepared file so the existing commit/push/PR flow works
+    prep.written = [diagRel];
+    writeJsonSafe(path.join(AI_TEMP_DIR,'prepare.json'), prep);
+    log('Created diagnostic file:', diagRel);
+  }
   const issue = prep.issue || {}; const issueNumber = issue.number || 'unknown';
 
   // Create branch
