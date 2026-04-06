@@ -191,12 +191,14 @@ async function prepare(){
       log('Hugging Face inference endpoint changed. Update script to use router.huggingface.co or update API usage. See .ai-fix/ai-error.txt');
     }
     // Attempt a safe deterministic fallback: simple find-and-replace based on issue text
-    const replaceRegex = /should be\s+"([^"]+)"\s+instead of\s+"([^"]+)"/i;
-    const m = (issue.body || issue.title || '').match(replaceRegex);
+    const text = (issue.body || issue.title || '');
+    // 1) Specific pattern (should be "new" instead of "old")
+    const replaceRegex = /should be\s+"([^\"]+)"\s+instead of\s+"([^\"]+)"/i;
+    const m = text.match(replaceRegex);
     if(m){
       const newText = m[1];
       const oldText = m[2];
-      log('Attempting deterministic replacement:', JSON.stringify({ oldText, newText }));
+      log('Attempting deterministic replacement (pattern):', JSON.stringify({ oldText, newText }));
       const replacements = {};
       for(const [rel, content] of Object.entries(filesMap)){
         if(content && content.includes(oldText)){
@@ -207,11 +209,37 @@ async function prepare(){
         const written = safeWriteFiles(replacements);
         writeJsonSafe(path.join(AI_TEMP_DIR,'prepare.json'), { issue: issue, candidates: candidates, written: written, fallback: 'deterministic-replace', replaced: Object.keys(replacements) });
         log('Deterministic replacements written for files:', Object.keys(replacements));
-        // continue — prepare considered complete
         return;
       } else {
         log('Deterministic replacement did not find occurrences of the old text in candidate files.');
       }
+    }
+
+    // 2) Generic quoted-strings fallback: find pairs of quoted strings and try replacements both directions
+    const quoted = [];
+    const qRegex = /"([^\"]+)"|'([^\']+)'/g;
+    let qm;
+    while((qm = qRegex.exec(text)) !== null){ quoted.push(qm[1] || qm[2]); }
+    if(quoted.length >= 2){
+      // try each ordered pair (prefer first->second then second->first)
+      const tryPairs = [[quoted[0], quoted[1]], [quoted[1], quoted[0]]];
+      for(const [newText, oldText] of tryPairs){
+        if(!oldText || !newText) continue;
+        log('Attempting generic quoted replacement:', { oldText, newText });
+        const replacements = {};
+        // prefer mentioned files if present
+        const targetFiles = mentions.length ? mentions : Object.keys(filesMap || {});
+        for(const rel of targetFiles){
+          try{ const content = fs.readFileSync(path.join(process.cwd(), rel), 'utf8'); if(content.includes(oldText)) replacements[rel] = content.split(oldText).join(newText); }catch(e){}
+        }
+        if(Object.keys(replacements).length){
+          const written = safeWriteFiles(replacements);
+          writeJsonSafe(path.join(AI_TEMP_DIR,'prepare.json'), { issue: issue, candidates: candidates, written: written, fallback: 'quoted-replace', replaced: Object.keys(replacements) });
+          log('Quoted replacements written for files:', Object.keys(replacements));
+          return;
+        }
+      }
+      log('Quoted-strings fallback found pairs but no occurrences matched in target files.');
     }
     writeJsonSafe(path.join(AI_TEMP_DIR,'prepare.json'), { issue: issue, files: candidates, error: e.message, ai_error_path: AI_TEMP_DIR + '/ai-error.txt' });
     return;
