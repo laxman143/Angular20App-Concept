@@ -311,6 +311,13 @@ function finalize(){
   log('Creating branch', branch);
   gitCommand(`git checkout -b ${branch}`);
 
+  // Ensure git has a committer identity in CI
+  try{
+    const actor = process.env.GITHUB_ACTOR || 'github-actions[bot]';
+    gitCommand(`git config user.email "${actor}@users.noreply.github.com"`);
+    gitCommand(`git config user.name "${actor}"`);
+  }catch(e){ log('Warning: could not set git user identity:', e.message); }
+
   // Add files
   for(const f of prep.written){ gitCommand(`git add "${f}"`); }
   gitCommand(`git commit -m "AI: Proposed fix for issue #${issueNumber}"`);
