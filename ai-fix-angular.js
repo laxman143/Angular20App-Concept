@@ -65,30 +65,59 @@ function findFilesByKeywords(keywords){ const globs = [];
 }
 
 async function callHuggingFace(prompt, model='bigcode/starcoder'){
-  if(!process.env.HUGGINGFACE_API_KEY){ log('HUGGINGFACE_API_KEY not set; aborting AI call.'); return null; }
+  if(!process.env.HUGGINGFACE_API_KEY){ log('HUGGINGFACE_API_KEY not set; skipping AI call.'); return null; }
   const data = JSON.stringify({ inputs: prompt, parameters: { max_new_tokens: 1024, temperature: 0.0 } });
-  const options = {
-    hostname: 'api-inference.huggingface.co',
-    path: `/models/${model}`,
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
-      'Content-Type': 'application/json',
-      'Content-Length': Buffer.byteLength(data)
-    }
-  };
-  return new Promise((resolve, reject)=>{
-    const req = https.request(options, res => {
-      let body = '';
-      res.on('data', d => body += d);
-      res.on('end', () => {
-        try{ const parsed = JSON.parse(body); if(Array.isArray(parsed) && parsed[0] && parsed[0].generated_text) return resolve(parsed[0].generated_text); if(parsed.error) return reject(new Error(parsed.error)); if(typeof parsed === 'string') return resolve(parsed); return resolve(JSON.stringify(parsed)); }catch(e){ return resolve(body); }
+
+  // Try the recommended router endpoint first, then fallback to api-inference
+  const hosts = ['router.huggingface.co', 'api-inference.huggingface.co'];
+  for(const host of hosts){
+    const options = {
+      hostname: host,
+      path: `/models/${model}`,
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(data)
+      }
+    };
+    try{
+      const out = await new Promise((resolve, reject)=>{
+        const req = https.request(options, res => {
+          let body = '';
+          res.on('data', d => body += d);
+          res.on('end', () => resolve({ status: res.statusCode, body }));
+        });
+        req.on('error', e => reject(e));
+        req.write(data);
+        req.end();
       });
-    });
-    req.on('error', e => reject(e));
-    req.write(data);
-    req.end();
-  });
+      if(out && out.body){
+        // Save raw response for debugging
+        fs.mkdirSync(AI_TEMP_DIR, { recursive: true });
+        fs.writeFileSync(path.join(AI_TEMP_DIR,'ai-raw-response.txt'), out.body, 'utf8');
+        try{
+          const parsed = JSON.parse(out.body);
+          // Response shapes vary: try several common fields
+          if(typeof parsed === 'string') return parsed;
+          if(parsed.error) throw new Error(parsed.error.toString());
+          if(Array.isArray(parsed) && parsed[0] && parsed[0].generated_text) return parsed[0].generated_text;
+          if(parsed.generated_text) return parsed.generated_text;
+          if(parsed.data && Array.isArray(parsed.data) && parsed.data[0] && parsed.data[0].generated_text) return parsed.data[0].generated_text;
+          // Some router responses return text directly
+          if(typeof parsed === 'object') return JSON.stringify(parsed);
+        }catch(e){
+          // not JSON — return raw body
+          return out.body;
+        }
+      }
+    }catch(e){
+      log(`Hugging Face call to ${host} failed:`, e.message || e);
+      // try next host
+    }
+  }
+  // all hosts failed
+  throw new Error('All Hugging Face endpoints failed');
 }
 
 function buildPrompt(issueTitle, issueBody, filesMap){
@@ -231,7 +260,7 @@ function finalize(){
   }catch(e){ log('git push failed:', e.message); throw e; }
 
   // Create PR via REST using GITHUB_TOKEN
-  const token = process.env.G_TOKEN; if(!token){ log('G_TOKEN not available; cannot create PR'); return; }
+  const token = process.env.GITHUB_TOKEN; if(!token){ log('GITHUB_TOKEN not available; cannot create PR'); return; }
   const repo = process.env.GITHUB_REPOSITORY || (()=>{ try{ const rem = gitCommand('git remote get-url origin'); const m = rem.match(/[:/]([^/]+\/[^/]+)(?:\.git)?$/); return m ? m[1] : null; }catch(e){ return null; } })();
   if(!repo){ log('Could not determine repository; set GITHUB_REPOSITORY env var.'); return; }
 
@@ -248,7 +277,7 @@ function finalize(){
   req.on('error', e => log('PR request failed:', e.message)); req.write(postData); req.end();
 }
 
-function commentOnIssue(owner, repo, issueNumber, message){ const token = process.env.G_TOKEN; if(!token) return; const post = JSON.stringify({ body: message });
+function commentOnIssue(owner, repo, issueNumber, message){ const token = process.env.GITHUB_TOKEN; if(!token) return; const post = JSON.stringify({ body: message });
   const options = { hostname: 'api.github.com', path: `/repos/${owner}/${repo}/issues/${issueNumber}/comments`, method: 'POST', headers: { 'User-Agent':'ai-fix-script', 'Authorization': `token ${token}`, 'Content-Type':'application/json', 'Content-Length': Buffer.byteLength(post) } };
   const req = https.request(options, res => { let body=''; res.on('data', d=> body+=d); res.on('end', ()=>{ log('Comment response status', res.statusCode); }); });
   req.on('error', e=> log('Comment failed', e.message)); req.write(post); req.end();
